@@ -2,80 +2,201 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID Scanner</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Professional ID Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0f172a; color: white; text-align: center; margin: 0; padding: 20px; }
-        #reader { width: 100%; max-width: 400px; margin: auto; border-radius: 10px; overflow: hidden; background: #000; }
-        .result-card { display: none; background: #1e293b; padding: 20px; border-radius: 15px; margin-top: 20px; text-align: left; }
-        .row { display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding: 8px 0; }
-        .label { color: #94a3b8; font-size: 12px; text-transform: uppercase; }
-        button { background: #2563eb; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; margin-top: 20px; width: 100%; }
-        #status { color: #38bdf8; margin-bottom: 10px; font-weight: bold; }
+        :root {
+            --accent: #0ea5e9;
+            --bg: #020617;
+            --surface: #1e293b;
+            --text: #f8fafc;
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 { font-size: 1.5rem; margin: 0; color: var(--accent); }
+        .subtitle { font-size: 0.9rem; color: #94a3b8; }
+
+        #scanner-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid #334155;
+            background: #000;
+            aspect-ratio: 4 / 3;
+        }
+
+        #reader {
+            width: 100% !important;
+            border: none !important;
+        }
+
+        /* Styling the internal library buttons */
+        #reader button {
+            background-color: var(--accent) !important;
+            color: white !important;
+            border: none !important;
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            font-weight: bold !important;
+            margin: 10px !important;
+            cursor: pointer;
+        }
+
+        #result-card {
+            display: none;
+            width: 100%;
+            background: var(--surface);
+            margin-top: 20px;
+            border-radius: 12px;
+            padding: 20px;
+            box-sizing: border-box;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .data-grid {
+            display: grid;
+            gap: 10px;
+        }
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+        }
+        .key { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
+        .val { color: var(--text); font-weight: 500; text-align: right; }
+
+        .scan-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            background: #450a0a;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+            font-size: 0.8rem;
+        }
     </style>
 </head>
 <body>
 
-    <h2>ID Barcode Scanner</h2>
-    <div id="status">Initializing Camera...</div>
-    
-    <div id="reader"></div>
+    <div class="app-container">
+        <header>
+            <h1>ID Scanner Pro</h1>
+            <p class="subtitle">Focus on the back of your ID (PDF417)</p>
+        </header>
 
-    <div id="result-card" class="result-card">
-        <h3>ID Details</h3>
-        <div id="parsedData"></div>
-        <button onclick="location.reload()">Scan Again</button>
+        <div id="scanner-wrapper">
+            <div id="reader"></div>
+        </div>
+        <div id="error-display" class="error-msg"></div>
+
+        <div id="result-card">
+            <h3 style="margin-top:0; border-bottom: 1px solid #334155; padding-bottom: 10px;">Scanned Data</h3>
+            <div class="data-grid" id="data-output"></div>
+            <button class="scan-btn" onclick="location.reload()">Scan Another</button>
+        </div>
     </div>
 
 <script>
-    const ID_KEYS = {
-        "DCS": "Last Name", "DAC": "First Name", "DAD": "Middle Name",
-        "DBB": "Date of Birth", "DAG": "Address", "DAI": "City",
-        "DAJ": "State", "DAK": "Zip Code", "DAQ": "ID Number"
+    // AAMVA (American Association of Motor Vehicle Administrators) Standards
+    const FIELD_MAP = {
+        "DCS": "Last Name",
+        "DAC": "First Name",
+        "DAD": "Middle Name",
+        "DBB": "Date of Birth",
+        "DAG": "Address",
+        "DAI": "City",
+        "DAJ": "State",
+        "DAK": "Zip",
+        "DAQ": "ID Number",
+        "DAU": "Height",
+        "DAY": "Eyes"
     };
 
-    function parseID(rawText) {
-        let results = "";
-        const cleanText = rawText.substring(Math.max(0, rawText.indexOf("ANSI")));
-        Object.keys(ID_KEYS).forEach(key => {
-            const regex = new RegExp(key + "([^\\n\\r\\f]+)");
-            const match = cleanText.match(regex);
-            if (match && match[1]) {
-                results += `<div class="row"><span class="label">${ID_KEYS[key]}</span><span>${match[1].trim()}</span></div>`;
+    function parseAAMVA(data) {
+        let output = "";
+        // Clean header noise
+        const anchor = data.indexOf("ANSI ") !== -1 ? data.indexOf("ANSI ") : 0;
+        const subData = data.substring(anchor);
+
+        for (const [key, label] of Object.entries(FIELD_MAP)) {
+            const regex = new RegExp(`${key}([^\\n\\r\\f]+)`);
+            const match = subData.match(regex);
+            if (match) {
+                output += `
+                    <div class="data-item">
+                        <span class="key">${label}</span>
+                        <span class="val">${match[1].trim()}</span>
+                    </div>`;
             }
-        });
-        return results;
+        }
+        return output;
     }
 
-    // Basic, high-compatibility initialization
+    // Initialize with a wider range of allowed formats but prioritizing PDF417
     const html5QrCode = new Html5Qrcode("reader");
     
-    const qrConfig = { 
-        fps: 10, 
-        qrbox: { width: 300, height: 150 },
-        // This is the most important part for you:
+    const config = { 
+        fps: 20, 
+        qrbox: { width: 320, height: 160 },
+        aspectRatio: 1.77,
+        // We strictly enforce PDF417 to avoid scanning standard 1D barcodes
         formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417 ]
     };
 
-    html5QrCode.start(
-        { facingMode: "environment" }, 
-        qrConfig,
-        (decodedText) => {
-            html5QrCode.stop().then(() => {
-                document.getElementById('reader').style.display = 'none';
-                document.getElementById('status').style.display = 'none';
-                const display = document.getElementById('parsedData');
-                display.innerHTML = parseID(decodedText) || `<b>Raw Data:</b><br>${decodedText}`;
-                document.getElementById('result-card').style.display = 'block';
-            });
-        }
-    ).then(() => {
-        document.getElementById('status').innerText = "Ready! Center the wide barcode.";
-    }).catch(err => {
-        document.getElementById('status').innerText = "Error: Camera blocked or not found.";
-        console.error(err);
-    });
+    function startScanner() {
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config,
+            (text) => {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('scanner-wrapper').style.display = 'none';
+                    const results = parseAAMVA(text);
+                    document.getElementById('data-output').innerHTML = results || `<p>Raw: ${text}</p>`;
+                    document.getElementById('result-card').style.display = 'block';
+                });
+            }
+        ).catch(err => {
+            const errDiv = document.getElementById('error-display');
+            errDiv.style.display = 'block';
+            errDiv.innerText = "Camera Error: " + err;
+        });
+    }
+
+    // Start on load
+    window.addEventListener('load', startScanner);
 </script>
 </body>
 </html>
