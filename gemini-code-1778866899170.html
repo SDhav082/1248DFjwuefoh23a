@@ -3,89 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID Scanner Pro</title>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <title>ID Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root {
-            --primary: #38bdf8;
-            --bg: #0f172a;
-            --card: #1e293b;
-            --text: #f8fafc;
-        }
-        body { 
-            font-family: -apple-system, system-ui, sans-serif; 
-            background-color: var(--bg);
-            margin: 0; padding: 15px; color: var(--text);
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .container { width: 100%; max-width: 500px; }
-        h1 { text-align: center; font-size: 1.5rem; margin-bottom: 10px; color: var(--primary); }
-        
-        #reader {
-            width: 100%;
-            border-radius: 20px;
-            overflow: hidden;
-            border: 2px solid #334155 !important;
-            background: #000;
-        }
-        
-        #result-card {
-            margin-top: 20px;
-            padding: 20px;
-            background: var(--card);
-            border-radius: 12px;
-            display: none;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .data-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #334155;
-        }
-        .label { font-weight: 600; color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        .value { font-weight: 500; color: #f8fafc; text-align: right; margin-left: 10px; }
-        
-        .btn {
-            display: block; width: 100%; padding: 16px;
-            background: #2563eb; color: white;
-            border: none; border-radius: 12px; font-weight: 600;
-            margin-top: 20px; cursor: pointer; font-size: 1rem;
-        }
-        .hint {
-            text-align: center; font-size: 0.9rem; color: #94a3b8; margin: 15px 0;
-            line-height: 1.4;
-        }
-        #reader__dashboard_section_csr button {
-            background: var(--primary) !important;
-            color: var(--bg) !important;
-            padding: 10px 20px !important;
-            border-radius: 8px !important;
-            text-transform: uppercase !important;
-            font-weight: bold !important;
-        }
+        body { font-family: sans-serif; background: #0f172a; color: white; text-align: center; margin: 0; padding: 20px; }
+        #reader { width: 100%; max-width: 400px; margin: auto; border-radius: 10px; overflow: hidden; background: #000; }
+        .result-card { display: none; background: #1e293b; padding: 20px; border-radius: 15px; margin-top: 20px; text-align: left; }
+        .row { display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding: 8px 0; }
+        .label { color: #94a3b8; font-size: 12px; text-transform: uppercase; }
+        button { background: #2563eb; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; margin-top: 20px; width: 100%; }
+        #status { color: #38bdf8; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>ID Barcode Scanner</h1>
-    <p class="hint">Center the large pixelated barcode in the box.<br><b>Ignore the thin line barcodes.</b></p>
+    <h2>ID Barcode Scanner</h2>
+    <div id="status">Initializing Camera...</div>
     
     <div id="reader"></div>
 
-    <div id="result-card">
-        <h2 style="margin-top:0; color: var(--primary); border-bottom: 2px solid #334155; padding-bottom: 10px;">ID Details</h2>
+    <div id="result-card" class="result-card">
+        <h3>ID Details</h3>
         <div id="parsedData"></div>
-        <button class="btn" onclick="location.reload()">Scan Next ID</button>
+        <button onclick="location.reload()">Scan Again</button>
     </div>
-</div>
 
 <script>
-    // AAMVA Parsing logic for US/Canada Drivers Licenses
     const ID_KEYS = {
-        "DCS": "Last Name",
-        "DAC":
+        "DCS": "Last Name", "DAC": "First Name", "DAD": "Middle Name",
+        "DBB": "Date of Birth", "DAG": "Address", "DAI": "City",
+        "DAJ": "State", "DAK": "Zip Code", "DAQ": "ID Number"
+    };
+
+    function parseID(rawText) {
+        let results = "";
+        const cleanText = rawText.substring(Math.max(0, rawText.indexOf("ANSI")));
+        Object.keys(ID_KEYS).forEach(key => {
+            const regex = new RegExp(key + "([^\\n\\r\\f]+)");
+            const match = cleanText.match(regex);
+            if (match && match[1]) {
+                results += `<div class="row"><span class="label">${ID_KEYS[key]}</span><span>${match[1].trim()}</span></div>`;
+            }
+        });
+        return results;
+    }
+
+    // Basic, high-compatibility initialization
+    const html5QrCode = new Html5Qrcode("reader");
+    
+    const qrConfig = { 
+        fps: 10, 
+        qrbox: { width: 300, height: 150 },
+        // This is the most important part for you:
+        formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417 ]
+    };
+
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        qrConfig,
+        (decodedText) => {
+            html5QrCode.stop().then(() => {
+                document.getElementById('reader').style.display = 'none';
+                document.getElementById('status').style.display = 'none';
+                const display = document.getElementById('parsedData');
+                display.innerHTML = parseID(decodedText) || `<b>Raw Data:</b><br>${decodedText}`;
+                document.getElementById('result-card').style.display = 'block';
+            });
+        }
+    ).then(() => {
+        document.getElementById('status').innerText = "Ready! Center the wide barcode.";
+    }).catch(err => {
+        document.getElementById('status').innerText = "Error: Camera blocked or not found.";
+        console.error(err);
+    });
+</script>
+</body>
+</html>
