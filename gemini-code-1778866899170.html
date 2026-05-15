@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID PDF417 Scanner PRO</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>ID Scanner Pro</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         :root {
-            --primary: #2563eb;
+            --primary: #38bdf8;
             --bg: #0f172a;
             --card: #1e293b;
             --text: #f8fafc;
@@ -16,13 +16,14 @@
             font-family: -apple-system, system-ui, sans-serif; 
             background-color: var(--bg);
             margin: 0; padding: 15px; color: var(--text);
+            display: flex; flex-direction: column; align-items: center;
         }
-        .container { max-width: 500px; margin: 0 auto; }
-        h1 { text-align: center; font-size: 1.25rem; margin-bottom: 15px; color: #38bdf8; }
+        .container { width: 100%; max-width: 500px; }
+        h1 { text-align: center; font-size: 1.5rem; margin-bottom: 10px; color: var(--primary); }
         
         #reader {
             width: 100%;
-            border-radius: 16px;
+            border-radius: 20px;
             overflow: hidden;
             border: 2px solid #334155 !important;
             background: #000;
@@ -34,26 +35,37 @@
             background: var(--card);
             border-radius: 12px;
             display: none;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .data-row {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #334155;
         }
-        .label { font-weight: 600; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; }
-        .value { font-weight: 500; color: #f8fafc; text-align: right; }
+        .label { font-weight: 600; color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .value { font-weight: 500; color: #f8fafc; text-align: right; margin-left: 10px; }
         
         .btn {
-            display: block; width: 100%; padding: 14px;
-            background: var(--primary); color: white;
-            border: none; border-radius: 8px; font-weight: 600;
-            margin-top: 15px; cursor: pointer; font-size: 1rem;
+            display: block; width: 100%; padding: 16px;
+            background: #2563eb; color: white;
+            border: none; border-radius: 12px; font-weight: 600;
+            margin-top: 20px; cursor: pointer; font-size: 1rem;
         }
         .hint {
-            text-align: center; font-size: 0.85rem; color: #94a3b8; margin-top: 10px;
+            text-align: center; font-size: 0.9rem; color: #94a3b8; margin: 15px 0;
+            line-height: 1.4;
+        }
+        #reader__dashboard_section_csr button {
+            background: var(--primary) !important;
+            color: var(--bg) !important;
+            padding: 10px 20px !important;
+            border-radius: 8px !important;
+            text-transform: uppercase !important;
+            font-weight: bold !important;
         }
     </style>
 </head>
@@ -61,93 +73,19 @@
 
 <div class="container">
     <h1>ID Barcode Scanner</h1>
+    <p class="hint">Center the large pixelated barcode in the box.<br><b>Ignore the thin line barcodes.</b></p>
     
     <div id="reader"></div>
-    <p class="hint">Center the wide barcode in the box. Ensure plenty of light.</p>
 
     <div id="result-card">
-        <h2 style="margin-top:0; color: #38bdf8;">Driver License Data</h2>
+        <h2 style="margin-top:0; color: var(--primary); border-bottom: 2px solid #334155; padding-bottom: 10px;">ID Details</h2>
         <div id="parsedData"></div>
-        <button class="btn" onclick="location.reload()">Scan Another ID</button>
+        <button class="btn" onclick="location.reload()">Scan Next ID</button>
     </div>
 </div>
 
 <script>
-    // AAMVA Standard Keys for ID parsing
+    // AAMVA Parsing logic for US/Canada Drivers Licenses
     const ID_KEYS = {
         "DCS": "Last Name",
-        "DAC": "First Name",
-        "DAD": "Middle Name",
-        "DBB": "Date of Birth",
-        "DAG": "Address",
-        "DAI": "City",
-        "DAJ": "State",
-        "DAK": "Zip Code",
-        "DAQ": "ID Number",
-        "DAY": "Eye Color",
-        "DAU": "Height"
-    };
-
-    function parseID(rawText) {
-        let results = "";
-        // IDs usually have a header before the data fields
-        const startIdx = rawText.indexOf("ANSI") !== -1 ? rawText.indexOf("ANSI") : 0;
-        const cleanText = rawText.substring(startIdx);
-
-        Object.keys(ID_KEYS).forEach(key => {
-            const regex = new RegExp(key + "([^\\n\\r\\f]+)");
-            const match = cleanText.match(regex);
-            if (match && match[1]) {
-                results += `
-                    <div class="data-row">
-                        <span class="label">${ID_KEYS[key]}</span>
-                        <span class="value">${match[1].trim()}</span>
-                    </div>`;
-            }
-        });
-        return results;
-    }
-
-    const html5QrCode = new Html5Qrcode("reader");
-
-    // Optimized configuration for PDF417
-    const config = { 
-        fps: 20, 
-        qrbox: { width: 320, height: 140 }, // Wide box for ID barcode
-        aspectRatio: 1.777778,
-        // STRICTLY only look for PDF417 to avoid confusing the scanner with 1D codes
-        formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417 ]
-    };
-
-    // Force high resolution to capture dense barcode details
-    const videoConstraints = {
-        facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-    };
-
-    html5QrCode.start(
-        videoConstraints, 
-        config,
-        (decodedText) => {
-            html5QrCode.stop().then(() => {
-                document.getElementById('reader').style.display = 'none';
-                const display = document.getElementById('parsedData');
-                const card = document.getElementById('result-card');
-                
-                const htmlContent = parseID(decodedText);
-                display.innerHTML = htmlContent || `<p>Parsed but no standard ID fields found.<br>Raw Data: ${decodedText}</p>`;
-                card.style.display = 'block';
-            });
-        },
-        (errorMessage) => {
-            // Keep scanning...
-        }
-    ).catch((err) => {
-        console.error("Camera Error:", err);
-        alert("Camera failed. Ensure you are using HTTPS and have granted permissions.");
-    });
-</script>
-
-</body>
-</html>
+        "DAC":
